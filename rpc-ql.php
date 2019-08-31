@@ -16,28 +16,48 @@ $method = $data['method'];
 $params = $data['params'];
 $id = $data['id'];
 
+// Table and column fields whitelist dictionary
+// 'SQL' means part of the SQL terminology
+$whitelist = ['SELECT' => 'SQL',
+              'FROM' => 'SQL',
+              'WHERE' => 'SQL',
+              'AND' => 'SQL',
+              'LIKE' => 'SQL',
+              ' ' => 'SQL',
+              '_' => 'SQL',
+              '%' => 'SQL',
+              '*' => 'SQL',
+              '=' => 'SQL',
+              '<' => 'SQL',
+              '>' => 'SQL',
+              ',' => 'SQL',
+              '?' => 'SQL',
+              '(' => 'SQL',
+              ')' => 'SQL',
+              "'" => 'SQL',
+              '"' => 'SQL',
+              'persons' => 'Persons table',
+              'person_id' => 'integer - The ID number of the person',
+              'person_name' => 'string - Name of the person',
+              'person_gender' => 'string - Male or Female',
+              'person_birthdate' => 'string - format YYYY-MM-DD',
+              'places' => 'Places table',
+              'place_id' => 'integer - The ID number of the place',
+              'place_name' => 'string - Name of the place',
+              'place_state' => 'string - State where the place is located'];
+
+// Show dictionary with GET request.
+if ( $_SERVER['REQUEST_METHOD'] == 'GET' ) echo json_encode($whitelist);
+
 // Remote API function
 function rpc_ql()
 {
 
+  global $whitelist;
   global $jsonrpc;
   global $method;
   global $params;
   global $id;
-  
-  // Table and column fields dictionary
-  $dictionary = [['Table' => 'persons',
-                'Fields' => ['person_id' => 'integer - ID number of the person',
-                  'person_name' => 'string - Name of the person',
-                  'person_gender' => 'string - Male or Female',
-                  'person_birth_date' => 'string - format YYYY-MM-DD']],
-                ['Table' => 'places',
-                'Fields' => ['place_id' => 'integer - ID number of the place',
-                  'place_name' => 'string - Name of the place',
-                  'place_state' => 'string - State where the place is located']]];
-
-  // Show dictionary with GET request.
-  if ( $_SERVER['REQUEST_METHOD'] == 'GET' ) echo json_encode($dictionary);
 
   // Access API functionality with POST request.
   if ( $_SERVER['REQUEST_METHOD'] == 'POST' ) {
@@ -46,12 +66,35 @@ function rpc_ql()
     if ( empty($jsonrpc) || empty($method) || empty($params['token']) || empty($params['query']) || empty($id) ) exit('Please set "jsonrpc", "method", "token" and "query" parameters, and request "ID".');
     $token = $params['token'];
     $query = $params['query'];
+    $query_data = $params['query_data'];
     
     // Token validation - token should be 12345
     if ( ! hash_equals( hash('sha256', 12345), hash('sha256', $token) ) ) exit('Token authentication failed');
     
+    // Retrieve whitelist array keys
+    $whitelist_keys = array_keys($whitelist);
+
+    // Prepare $query for array transformation
+    // Remove special characters attached to whitelisted terms from $querry array
+    $query_cleansed = str_ireplace( '%', '', $query ); // Initial conversion of attached characters.
+    $query_cleansed = str_ireplace( ',', '', $query_cleansed ); // Succeeding conversion of $query_cleansed.
+    $query_cleansed = str_ireplace( '(', '', $query_cleansed );
+    $query_cleansed = str_ireplace( ')', '', $query_cleansed );
+    $query_cleansed = str_ireplace( "'", '', $query_cleansed );
+    $query_cleansed = str_ireplace( '"', '', $query_cleansed );
+    $query_array = explode( ' ', $query_cleansed );
+
+    // Declare an error if not in whitelist dictionary
+    foreach ( $query_array as $query_array ) {
+      if ( ! in_array($query_array, $whitelist_keys) ) {
+        $error[] = $query_array;
+      }
+    }
+
     // Query validation - query should be alphanumeric with a few accepted characters and blacklisted SQL commands.
-    if ( preg_match('/^[a-zA-Z0-9 _,*=()\']+$/i', $query) && ! preg_match('/(drop|insert|into|update)/i', $query) ) {
+    // if ( preg_match('/^[a-zA-Z0-9 _,*=()\']+$/i', $query) && ! preg_match('/(drop|insert|into|update|truncate)/i', $query) ) {
+
+    if ( empty($error) ) {
 
       // Table and column fields converter
       $mod_query = str_replace( 'persons', 'db_persons', $query ); // Persons table; Initial conversion of $query.
@@ -64,16 +107,19 @@ function rpc_ql()
       $mod_query = str_replace( 'place_name', 'db_place_name', $mod_query );
       $mod_query = str_replace( 'place_state', 'db_place_state', $mod_query );
 
-      // Set $error to null if $mod_query contains a query.
+      // Set $error to null if $mod_query contains a valid query.
       if ( $mod_query !== false ) $error = null;
 
+      /*** Perform SQL execution using PHP PDO with '?' as placeholder and $query_data OR $params['query_data'] as the array of data. ***/
+      
       $response = ['jsonrpc' => $jsonrpc, 'result' => $mod_query, 'error' => $error, 'id' => $id];
       echo json_encode($response);
+      echo ' -- POSTed query data --> ' . json_encode($query_data);
 
     } else {
 
       // Failed validation
-      $error_message = "The query is not valid. It should only contain alphanumeric characters, spaces, '_', ',', '*', '=', '(', ')' and '''. Only SELECT statements are allowed.";
+      $error_message = "The query is not valid. Please verify with whitelisted terms.";
       $response = ['jsonrpc' => $jsonrpc, 'result' => null, 'error' => ['code' => 32600, 'message' => $error_message], 'id' => $id];
       echo json_encode($response);
 
@@ -84,9 +130,9 @@ function rpc_ql()
 }
 
 // Execute method if function exists
-if ( function_exists($method) ) {
+if ( $_SERVER['REQUEST_METHOD'] == 'POST' && function_exists($method) ) {
   return $method();
-} else {
+} elseif ( $_SERVER['REQUEST_METHOD'] == 'POST' && ! function_exists($method) ) {
   $error_message = 'Sorry. The included method does not exist.';
   $response = ['jsonrpc' => $jsonrpc, 'result' => null, 'error' => ['code' => 32602, 'message' => $error_message], 'id' => $id];
   echo json_encode($response);
