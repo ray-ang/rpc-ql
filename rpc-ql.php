@@ -16,40 +16,44 @@ $method = $data['method'];
 $params = $data['params'];
 $id = $data['id'];
 
-/** Table and column fields Whitelist Dictionary **/
-// 'SQL' means part of the SQL terminology.
-$whitelist = ['SELECT' => 'SQL',
-              'FROM' => 'SQL',
-              'WHERE' => 'SQL',
-              'AND' => 'SQL',
-              'OR' => 'SQL',
-              'IN' => 'SQL',
-              'LIKE' => 'SQL',
-              'INSERT' => 'SQL',
-              'INTO' => 'SQL',
-              'VALUES' => 'SQL',
-              ' ' => 'SQL',
-              '_' => 'SQL',
-              '%' => 'SQL',
-              '*' => 'SQL',
-              '=' => 'SQL',
-              '<' => 'SQL',
-              '>' => 'SQL',
-              ',' => 'SQL',
-              '?' => 'SQL',
-              '(' => 'SQL',
-              ')' => 'SQL',
-              "'" => 'SQL',
-              '"' => 'SQL',
+/** Whitelist Dictionary **/
+// Format is ['display_name', 'actual_query', 'description']
+$whitelist = [['SELECT', 'SELECT', 'SQL'],
+              ['FROM', 'FROM', 'SQL'],
+              ['WHERE', 'WHERE', 'SQL'],
+              ['AND', 'AND', 'SQL'],
+              ['OR', 'OR', 'SQL'],
+              ['IN', 'IN', 'SQL'],
+              ['LIKE', 'LIKE', 'SQL'],
+              ['INSERT', 'INSERT', 'SQL'],
+              ['INTO', 'INTO', 'SQL'],
+              ['VALUES', 'VALUES', 'SQL'],
+              [' ', ' ', 'SQL'],
+              ['_', '_', 'SQL'],
+              ['%', '%', 'SQL'],
+              ['*', '*', 'SQL'],
+              ['=', '=', 'SQL'],
+              ['<', '<', 'SQL'],
+              ['>', '>', 'SQL'],
+              [',', ',', 'SQL'],
+              ['?', '?', 'SQL'],
+              ['(', '(', 'SQL'],
+              [')', ')', 'SQL'],
+              ["'", "'", 'SQL'],
+              ['"', '"', 'SQL'],
               // Table and field names, and description
-              'persons' => 'Persons Table',
-              'person_id' => 'integer - ID number',
-              'person_name' => 'string - Name',
-              'person_gender' => 'string - M or F',
-              'person_birthdate' => 'date - YYYY-MM-DD'];
+              ['persons', 'db_persons', 'Persons Table'],
+              ['person_id', 'db_person_id', 'integer - ID number'],
+              ['person_name', 'db_person_name', 'string - Name'],
+              ['person_gender', 'db_person_gender', 'string - M or F'],
+              ['person_birthdate', 'db_person_birthdate', 'date - YYYY-MM-DD']];
 
 // Show Whitelist Dictionary with GET request.
-if ($_SERVER['REQUEST_METHOD'] == 'GET') echo json_encode($whitelist);
+foreach ($whitelist as $array) {
+  $whitelist_display[] = "$array[0] => $array[2]";
+}
+
+if ($_SERVER['REQUEST_METHOD'] == 'GET') echo json_encode($whitelist_display);
 
 /**
  * RPC-QL Function accessed as an API
@@ -76,22 +80,25 @@ function rpc_ql()
     // Token validation - token should be set as 12345
     if ( ! hash_equals(hash('sha256', 12345), hash('sha256', $token)) ) exit('Token authentication has failed.');
     
-    // Retrieve whitelist array keys
-    $whitelist_keys = array_keys($whitelist);
+    // Retrieve whitelist display names
+    foreach ($whitelist as $array) {
+      $whitelist_name[] = $array[0];
+    }
 
     /** Prepare $query for array conversion **/
     // Remove special characters attached to whitelisted terms from $querry.
-    $query_remove = str_replace( '%', '', $query ); // Initial conversion of attached characters.
-    $query_remove = str_replace( ',', '', $query_remove ); // Succeeding conversion of $query_remove.
+    $query_remove = $query; // Initial conversion of $query to $query_remove.
+    $query_remove = str_replace( '%', '', $query_remove );
+    $query_remove = str_replace( ',', '', $query_remove );
     $query_remove = str_replace( '(', '', $query_remove );
     $query_remove = str_replace( ')', '', $query_remove );
     $query_remove = str_replace( "'", '', $query_remove );
     $query_remove = str_replace( '"', '', $query_remove );
     $query_array = explode( ' ', $query_remove );
 
-    // Declare an error if not in Whitelist Dictionary keys (as string)
+    // Declare an error if not in Whitelist Dictionary display names (as string)
     foreach ($query_array as $query_array) {
-      if ( ! stristr(implode('::', $whitelist_keys), $query_array) ) {
+      if ( ! stristr(implode('::', $whitelist_name), $query_array) ) {
         $error_query[] = $query_array;
       }
     }
@@ -100,11 +107,10 @@ function rpc_ql()
     if (empty($error_query)) {
 
       // Convert whitelisted terms to actual database table and field names.
-      $query_conv = str_ireplace( 'persons', 'db_persons', $query ); // Persons Table. Initial conversion of $query.
-      $query_conv = str_ireplace( 'person_id', 'db_person_id', $query_conv ); // Succeeding conversion of $query_conv.
-      $query_conv = str_ireplace( 'person_name', 'db_person_name', $query_conv );
-      $query_conv = str_ireplace( 'person_gender', 'db_person_gender', $query_conv );
-      $query_conv = str_ireplace( 'person_birthdate', 'db_person_birthdate', $query_conv );
+      $query_conv = $query; // Initial conversion of $query to $query_conv.
+      foreach ($whitelist as $array) {
+        $query_conv = str_ireplace( $array[0], $array[1], $query_conv );
+      }
 
       // Set $error to null if $query_conv is a valid query. (JSON-RPC 2.0)
       if ($query_conv !== FALSE) $error = null;
