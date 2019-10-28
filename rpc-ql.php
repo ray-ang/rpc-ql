@@ -126,7 +126,7 @@ function rpc_ql()
       // Use converted query string in actual query statement.
       $stmt = $conn->prepare("$query_conv");
       $stmt->execute($query_data);
-      $result = $stmt->fetchAll();
+      $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
       // If $result from SELECT query is empty or FALSE, show error in JSON-RPC 2.0 format.
       if ( substr($query_conv, 0, 6) == 'SELECT' && isset($result) && (empty($result) || $result == FALSE ) ) exit(json_encode(['jsonrpc' => $jsonrpc, 'error' => ['code' => 32602, 'message' => 'No results found.'], 'id' => $id]));
