@@ -2,7 +2,8 @@
 
 /**
  * RPC-QL    - RPC-QL is a method of passing query language (QL)
- *           - statements using remote procedure call (RPC).
+ *           - statements through a whitelist dictionary using
+ *           - remote procedure call (RPC).
  *
  * @package  RPC-QL (Query Language over RPC)
  * @author   Raymund John Ang <raymund@open-nis.org>
