@@ -10,7 +10,7 @@
  * @license  MIT License
  */
 
-// Process POSTed JSON data using JSON-RPC 2.0 specification
+// Process request data using JSON-RPC 2.0 specification
 $data = json_decode( file_get_contents('php://input'), TRUE );
 $jsonrpc = $data['jsonrpc'];
 $method = $data['method'];
@@ -50,11 +50,11 @@ $whitelist = [['SELECT', 'SELECT', 'SQL'],
               ['person_birthdate', 'db_person_birthdate', 'date - YYYY-MM-DD']];
 
 // Show Whitelist Dictionary with GET request.
-foreach ($whitelist as $array) {
-  $whitelist_display[] = "$array[0] => $array[2]";
-}
+$array = array();
+foreach ($whitelist as $array) $whitelist_display[] = "$array[0] => $array[2]";
+if ($_SERVER['REQUEST_METHOD'] === 'GET') echo json_encode($whitelist_display);
+unset($array);
 
-if ($_SERVER['REQUEST_METHOD'] == 'GET') echo json_encode($whitelist_display);
 
 /**
  * RPC-QL Function accessed as an API
